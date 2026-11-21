@@ -2,7 +2,7 @@
 ## Title: MarkWheel
 ## Notes: Hold a key to open a wheel of raid markers at your cursor; release over a marker to put it on the mob you were hovering. Works in combat.
 ## Author: Adam
-## Version: 2.0.1
+## Version: 2.0.3
 ## SavedVariables: MarkWheelDB
 
 MarkWheel.lua

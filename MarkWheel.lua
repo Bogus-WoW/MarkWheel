@@ -1,4 +1,4 @@
--- MarkWheel 2.0
+-- MarkWheel 2.0.3
 --
 -- Hold your MarkWheel key while hovering a mob: a wheel of raid markers opens
 -- around your cursor. Move onto a marker and let go to put it on that mob.
@@ -14,7 +14,7 @@
 --   /mw            help and current key
 --   /mw bind       press the key or mouse button to use (Esc cancels)
 --   /mw scale <n>  wheel size, e.g. /mw scale 1.2 (not in combat)
---   /mw status     shows what the secure parts are doing, for troubleshooting
+--   /mw status     shows the bound key and the key button state, for troubleshooting
 --
 -- In a party anyone can mark; in a raid you need lead or assist.
 
@@ -49,25 +49,28 @@ end
 -- keep working in combat). They only touch frames passed in as references.
 --------------------------------------------------------------------------
 
+-- (Wrapped-script snippets get their arguments as named parameters: pre = self, button, down;
+-- post = self, message, button, down. Using "..." in them is a compile error.)
 -- Before the key button handles a press/release: make the button run its macro
 -- on this phase, and on a press start from the "target the mob" macro.
 local PRE = [[
-local button, down = ...
 local k = self:GetFrameRef("key")
 k:SetAttribute("useOnKeyDown", down and true or false)
 if down then
 	k:SetAttribute("macrotext", k:GetAttribute("startmacro"))
 end
+return button, "go"
 ]]
 
 -- After it ran: on press put the wheel under the cursor; on release hide it
 -- and get ready for the next press.
 local POST = [[
-local message, button, down = ...
 local k = self:GetFrameRef("key")
 local w = self:GetFrameRef("wheel")
 if down then
 	k:SetAttribute("macrotext", "")
+	-- show first, so the wheel still appears even if placing it fails
+	w:Show()
 	local ui = self:GetFrameRef("ui")
 	local x, y = ui:GetMousePosition()
 	if x and y then
@@ -76,7 +79,6 @@ if down then
 		w:ClearAllPoints()
 		w:SetPoint("CENTER", ui, "BOTTOMLEFT", x * uw / s, y * uh / s)
 	end
-	w:Show()
 else
 	w:Hide()
 	k:SetAttribute("macrotext", k:GetAttribute("startmacro"))
@@ -213,18 +215,6 @@ local function Build()
 
 	wheel:SetScript("OnUpdate", OnUpdate)
 
-	-- /mw debug on: print what the secure parts did, step by step (insecure hooks, so safe)
-	keyBtn:HookScript("PostClick", function(self, button, down)
-		if not DB().debug then return end
-		Print(("key %s: macro now %q, useOnKeyDown %s, wheel %s, target %s"):format(down and "DOWN" or "UP",
-			tostring(self:GetAttribute("macrotext")), tostring(self:GetAttribute("useOnKeyDown")),
-			wheel:IsShown() and "shown" or "hidden", UnitExists("target") and (Plain(UnitName("target")) or "?") or "none"))
-	end)
-	for slot, h in ipairs(hits) do
-		h:HookScript("OnEnter", function()
-			if DB().debug then Print(("hover slot %d (%s): macro %q"):format(slot, MarkName(ORDER[slot]), tostring(keyBtn:GetAttribute("macrotext")))) end
-		end)
-	end
 	return true
 end
 
@@ -304,9 +294,6 @@ SlashCmdList.MARKWHEEL = function(msg)
 			wheel:SetAttribute("ws", n)
 		end
 		Print(("wheel scale %.2f."):format(db.scale))
-	elseif cmd == "debug" then
-		if rest == "on" then db.debug = true elseif rest == "off" then db.debug = false end
-		Print("debug trace: " .. (db.debug and "on" or "off") .. ".")
 	elseif cmd == "status" then
 		local keys = { GetBindingKey(CLICKBIND) }
 		Print(("built: %s, key: %s, in combat: %s"):format(tostring(keyBtn ~= nil),
